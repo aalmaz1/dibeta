@@ -1,79 +1,98 @@
+// ==========================================
+// Firebase SDK Imports
+// ==========================================
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { 
-    auth, 
-    database, 
-    ref, 
-    onValue, 
-    off,
+    getAuth, 
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     signOut,
     onAuthStateChanged 
-} from './firebase-config.js';
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { 
+    getDatabase, 
+    ref, 
+    onValue, 
+    off
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 
 // ==========================================
-// App State
+// Firebase Config - ЗАМЕНИТЕ НА СВОИ ЗНАЧЕНИЯ
 // ==========================================
-const state = {
-    user: null,
-    devices: {},
-    map: null,
-    markers: {},
-    activeDeviceId: null,
-    isLoginMode: true
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId: "YOUR_APP_ID"
 };
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const database = getDatabase(app);
+
+console.log('Firebase initialized:', app);
+
+// ==========================================
+// State
+// ==========================================
+let isLoginMode = true;
+let currentUser = null;
+let devicesRef = null;
+let map = null;
+let markers = {};
 
 // ==========================================
 // DOM Elements
 // ==========================================
-const authScreen = document.getElementById('auth-screen');
-const dashboardScreen = document.getElementById('dashboard-screen');
-const authForm = document.getElementById('auth-form');
-const emailInput = document.getElementById('email');
-const passwordInput = document.getElementById('password');
-const loginBtn = document.getElementById('login-btn');
-const btnText = loginBtn.querySelector('.btn-text');
-const btnLoader = loginBtn.querySelector('.btn-loader');
-const authToggleBtn = document.getElementById('auth-toggle-btn');
-const authModeText = document.getElementById('auth-mode-text');
-const logoutBtn = document.getElementById('logout-btn');
-const deviceList = document.getElementById('device-list');
-const deviceCount = document.getElementById('device-count');
-const userEmail = document.getElementById('user-email');
-const connectionStatus = document.getElementById('connection-status');
+const els = {
+    authScreen: document.getElementById('auth-screen'),
+    dashboardScreen: document.getElementById('dashboard-screen'),
+    email: document.getElementById('email'),
+    password: document.getElementById('password'),
+    authActionBtn: document.getElementById('auth-action-btn'),
+    btnText: document.getElementById('btn-text'),
+    btnLoader: document.getElementById('btn-loader'),
+    authToggleBtn: document.getElementById('auth-toggle-btn'),
+    authModeText: document.getElementById('auth-mode-text'),
+    logoutBtn: document.getElementById('logout-btn'),
+    deviceList: document.getElementById('device-list'),
+    deviceCount: document.getElementById('device-count'),
+    userEmail: document.getElementById('user-email'),
+    notifications: document.getElementById('notifications')
+};
+
+console.log('DOM elements:', els);
 
 // ==========================================
 // Auth Functions
 // ==========================================
 
-// Toggle between login and signup
 function toggleAuthMode() {
-    state.isLoginMode = !state.isLoginMode;
+    console.log('Toggle clicked, current mode:', isLoginMode);
+    isLoginMode = !isLoginMode;
     
-    if (state.isLoginMode) {
-        btnText.textContent = 'Sign In';
-        authModeText.textContent = "Don't have an account?";
-        authToggleBtn.textContent = 'Sign Up';
+    if (isLoginMode) {
+        els.btnText.textContent = 'Sign In';
+        els.authModeText.textContent = "Don't have an account?";
+        els.authToggleBtn.textContent = 'Sign Up';
     } else {
-        btnText.textContent = 'Create Account';
-        authModeText.textContent = "Already have an account?";
-        authToggleBtn.textContent = 'Sign In';
+        els.btnText.textContent = 'Create Account';
+        els.authModeText.textContent = "Already have an account?";
+        els.authToggleBtn.textContent = 'Sign In';
     }
     
-    console.log('Switched to mode:', state.isLoginMode ? 'login' : 'signup');
+    console.log('New mode:', isLoginMode ? 'login' : 'signup');
 }
 
-// Handle toggle button click
-authToggleBtn.addEventListener('click', (e) => {
-    e.preventDefault(); // Prevent form submission
-    e.stopPropagation(); // Stop event bubbling
-    toggleAuthMode();
-});
-
-// Handle form submit
-authForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = emailInput.value.trim();
-    const password = passwordInput.value;
+async function handleAuthAction() {
+    const email = els.email.value.trim();
+    const password = els.password.value;
+    
+    console.log('Auth action:', isLoginMode ? 'login' : 'signup', email);
     
     if (!email || !password) {
         showNotification('Please enter email and password', 'error');
@@ -88,43 +107,67 @@ authForm.addEventListener('submit', async (e) => {
     setLoading(true);
     
     try {
-        if (state.isLoginMode) {
-            // Sign In
-            await signInWithEmailAndPassword(auth, email, password);
+        if (isLoginMode) {
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            console.log('Signed in:', userCredential.user.email);
             showNotification('Signed in successfully!', 'success');
         } else {
-            // Sign Up
-            await createUserWithEmailAndPassword(auth, email, password);
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            console.log('Account created:', userCredential.user.email);
             showNotification('Account created successfully!', 'success');
         }
     } catch (error) {
         console.error('Auth error:', error);
-        showNotification(getAuthErrorMessage(error.code), 'error');
+        showNotification(getErrorMessage(error.code), 'error');
     } finally {
         setLoading(false);
     }
-});
+}
 
-// Logout
-logoutBtn.addEventListener('click', async () => {
-    try {
-        await signOut(auth);
+function handleLogout() {
+    signOut(auth).then(() => {
         showNotification('Signed out', 'success');
-    } catch (error) {
-        showNotification('Error signing out', 'error');
-    }
+    }).catch((error) => {
+        showNotification('Error: ' + error.message, 'error');
+    });
+}
+
+// ==========================================
+// Event Listeners
+// ==========================================
+
+// Кнопка Sign Up / Sign In переключения
+els.authToggleBtn.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Toggle button clicked!');
+    toggleAuthMode();
 });
 
-// Auth state listener
+// Кнопка основного действия (Sign In / Create Account)
+els.authActionBtn.addEventListener('click', function(e) {
+    e.preventDefault();
+    console.log('Action button clicked!');
+    handleAuthAction();
+});
+
+// Кнопка выхода
+els.logoutBtn.addEventListener('click', handleLogout);
+
+// ==========================================
+// Auth State
+// ==========================================
+
 onAuthStateChanged(auth, (user) => {
+    console.log('Auth state changed:', user ? user.email : 'null');
+    
     if (user) {
-        state.user = user;
+        currentUser = user;
         showDashboard();
-        startDeviceTracking();
+        startTracking();
     } else {
-        state.user = null;
-        state.devices = {};
-        stopDeviceTracking();
+        currentUser = null;
+        stopTracking();
         showAuth();
     }
 });
@@ -134,59 +177,62 @@ onAuthStateChanged(auth, (user) => {
 // ==========================================
 
 function setLoading(loading) {
-    loginBtn.disabled = loading;
-    btnText.classList.toggle('hidden', loading);
-    btnLoader.classList.toggle('hidden', !loading);
+    els.authActionBtn.disabled = loading;
+    els.btnText.classList.toggle('hidden', loading);
+    els.btnLoader.classList.toggle('hidden', !loading);
 }
 
 function showAuth() {
-    authScreen.classList.add('active');
-    dashboardScreen.classList.remove('active');
-    emailInput.value = '';
-    passwordInput.value = '';
-    state.isLoginMode = true;
-    updateUIForLoginMode();
-}
-
-function updateUIForLoginMode() {
-    btnText.textContent = 'Sign In';
-    authModeText.textContent = "Don't have an account?";
-    authToggleBtn.textContent = 'Sign Up';
+    els.authScreen.classList.add('active');
+    els.dashboardScreen.classList.remove('active');
+    els.email.value = '';
+    els.password.value = '';
+    isLoginMode = true;
+    els.btnText.textContent = 'Sign In';
+    els.authModeText.textContent = "Don't have an account?";
+    els.authToggleBtn.textContent = 'Sign Up';
 }
 
 function showDashboard() {
-    authScreen.classList.remove('active');
-    dashboardScreen.classList.add('active');
-    userEmail.textContent = state.user.email;
+    els.authScreen.classList.remove('active');
+    els.dashboardScreen.classList.add('active');
+    els.userEmail.textContent = currentUser.email;
     initMap();
 }
 
-function getAuthErrorMessage(code) {
-    const messages = {
-        'auth/invalid-email': 'Invalid email address',
-        'auth/user-disabled': 'This account has been disabled',
-        'auth/user-not-found': 'No account found with this email',
-        'auth/wrong-password': 'Incorrect password',
-        'auth/email-already-in-use': 'An account already exists with this email',
-        'auth/weak-password': 'Password should be at least 6 characters',
-        'auth/invalid-credential': 'Invalid email or password',
-        'auth/network-request-failed': 'Network error. Please check your connection'
-    };
-    return messages[code] || `Error: ${code}`;
-}
-
 function showNotification(message, type = 'info') {
-    const container = document.getElementById('notifications');
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.textContent = message;
-    container.appendChild(notification);
+    const notif = document.createElement('div');
+    notif.className = `notification ${type}`;
+    notif.textContent = message;
+    notif.style.cssText = `
+        background: rgba(0,0,0,0.9);
+        color: white;
+        padding: 16px 24px;
+        border-radius: 12px;
+        margin-bottom: 10px;
+        border-left: 4px solid ${type === 'success' ? '#30D158' : type === 'error' ? '#FF3B30' : '#007AFF'};
+        animation: slideIn 0.3s ease;
+    `;
+    els.notifications.appendChild(notif);
     
     setTimeout(() => {
-        notification.style.opacity = '0';
-        notification.style.transform = 'translateX(100%)';
-        setTimeout(() => notification.remove(), 300);
+        notif.style.opacity = '0';
+        setTimeout(() => notif.remove(), 300);
     }, 3000);
+}
+
+function getErrorMessage(code) {
+    const messages = {
+        'auth/invalid-email': 'Invalid email address',
+        'auth/user-disabled': 'Account disabled',
+        'auth/user-not-found': 'Account not found',
+        'auth/wrong-password': 'Wrong password',
+        'auth/email-already-in-use': 'Email already registered',
+        'auth/weak-password': 'Password too weak (min 6 chars)',
+        'auth/invalid-credential': 'Invalid email or password',
+        'auth/network-request-failed': 'Network error'
+    };
+    return messages[code] || code;
 }
 
 // ==========================================
@@ -194,176 +240,98 @@ function showNotification(message, type = 'info') {
 // ==========================================
 
 function initMap() {
-    if (state.map) return;
+    if (map) return;
     
-    state.map = L.map('map', {
+    map = L.map('map', {
         zoomControl: false,
         attributionControl: false
     }).setView([37.5665, 126.9780], 12);
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19
-    }).addTo(state.map);
+    }).addTo(map);
     
-    L.control.zoom({
-        position: 'bottomright'
-    }).addTo(state.map);
-}
-
-function updateDeviceMarker(deviceId, device) {
-    const { lat, lng } = device.location || {};
-    if (!lat || !lng) return;
-    
-    const position = [lat, lng];
-    
-    if (state.markers[deviceId]) {
-        state.markers[deviceId].setLatLng(position);
-    } else {
-        const icon = L.divIcon({
-            className: 'custom-marker',
-            html: `<div style="
-                width: 20px;
-                height: 20px;
-                background: #007AFF;
-                border: 3px solid white;
-                border-radius: 50%;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-            "></div>`,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10]
-        });
-        
-        state.markers[deviceId] = L.marker(position, { icon })
-            .addTo(state.map)
-            .bindPopup(`
-                <strong>${device.name || 'Unknown Device'}</strong><br>
-                Battery: ${device.battery || '?'}%<br>
-                Updated: ${formatTime(device.timestamp)}
-            `);
-    }
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
 }
 
 // ==========================================
-// Device Tracking
+// Tracking Functions
 // ==========================================
 
-let devicesRef = null;
-
-function startDeviceTracking() {
-    if (!state.user) return;
+function startTracking() {
+    if (!currentUser) return;
     
-    const userId = sanitizeEmail(state.user.email);
+    const userId = currentUser.email.replace(/[.#$[\]]/g, '_');
     devicesRef = ref(database, `users/${userId}/devices`);
     
     onValue(devicesRef, (snapshot) => {
         const data = snapshot.val() || {};
-        state.devices = data;
-        renderDevices();
-        
-        Object.entries(data).forEach(([deviceId, device]) => {
-            updateDeviceMarker(deviceId, device);
-        });
-        
-        const locations = Object.values(data)
-            .filter(d => d.location?.lat && d.location?.lng)
-            .map(d => [d.location.lat, d.location.lng]);
-        
-        if (locations.length > 0 && state.map) {
-            const bounds = L.latLngBounds(locations);
-            state.map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
-        }
+        renderDevices(data);
     });
 }
 
-function stopDeviceTracking() {
+function stopTracking() {
     if (devicesRef) {
         off(devicesRef);
         devicesRef = null;
     }
     
-    Object.values(state.markers).forEach(marker => {
-        if (state.map) state.map.removeLayer(marker);
-    });
-    state.markers = {};
-    
-    deviceList.innerHTML = '';
-    deviceCount.textContent = '0';
+    Object.values(markers).forEach(m => map?.removeLayer(m));
+    markers = {};
 }
 
-function renderDevices() {
-    const devices = Object.entries(state.devices);
-    deviceCount.textContent = devices.length;
+function renderDevices(devices) {
+    const entries = Object.entries(devices);
+    els.deviceCount.textContent = entries.length;
     
-    deviceList.innerHTML = devices.map(([deviceId, device]) => {
-        const location = device.location || {};
-        const isOnline = isDeviceOnline(device.timestamp);
+    if (entries.length === 0) {
+        els.deviceList.innerHTML = '<div class="empty-state">No devices found</div>';
+        return;
+    }
+    
+    els.deviceList.innerHTML = entries.map(([id, dev]) => {
+        const loc = dev.location || {};
+        const online = dev.timestamp && (Date.now() - dev.timestamp < 300000);
         
         return `
-            <div class="device-card ${state.activeDeviceId === deviceId ? 'active' : ''}" 
-                 data-device-id="${deviceId}">
+            <div class="device-card" data-id="${id}">
                 <div class="device-icon">📱</div>
                 <div class="device-info">
-                    <div class="device-name">${device.name || deviceId}</div>
-                    <div class="device-status ${isOnline ? '' : 'offline'}">
-                        ${isOnline ? 'Online' : 'Offline'}
+                    <div class="device-name">${dev.name || id}</div>
+                    <div class="device-status ${online ? '' : 'offline'}">
+                        ${online ? 'Online' : 'Offline'}
                     </div>
                 </div>
                 <div class="device-meta">
-                    <div class="device-battery">${device.battery || '?'}%</div>
+                    <div class="device-battery">${dev.battery || '?'}%</div>
                     <div class="device-coords">
-                        ${location.lat ? location.lat.toFixed(4) : '?'}, 
-                        ${location.lng ? location.lng.toFixed(4) : '?'}
+                        ${loc.lat?.toFixed(4) || '?'}, ${loc.lng?.toFixed(4) || '?'}
                     </div>
                 </div>
             </div>
         `;
     }).join('');
     
-    deviceList.querySelectorAll('.device-card').forEach(card => {
+    // Click handlers
+    els.deviceList.querySelectorAll('.device-card').forEach(card => {
         card.addEventListener('click', () => {
-            const deviceId = card.dataset.deviceId;
-            const device = state.devices[deviceId];
-            
-            state.activeDeviceId = deviceId;
-            
-            if (device?.location?.lat && state.map) {
-                state.map.flyTo([device.location.lat, device.location.lng], 16);
-                state.markers[deviceId]?.openPopup();
+            const id = card.dataset.id;
+            const dev = devices[id];
+            if (dev?.location?.lat && map) {
+                map.flyTo([dev.location.lat, dev.location.lng], 16);
             }
-            
-            deviceList.querySelectorAll('.device-card').forEach(c => c.classList.remove('active'));
-            card.classList.add('active');
         });
     });
 }
 
 // ==========================================
-// Utilities
+// Service Worker
 // ==========================================
 
-function sanitizeEmail(email) {
-    return email.replace(/[.#$[\]]/g, '_');
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+        .then(() => console.log('SW registered'))
+        .catch(err => console.log('SW error:', err));
 }
 
-function isDeviceOnline(timestamp) {
-    if (!timestamp) return false;
-    const lastUpdate = new Date(timestamp);
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    return lastUpdate > fiveMinutesAgo;
-}
-
-function formatTime(timestamp) {
-    if (!timestamp) return 'Unknown';
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString();
-}
-
-window.addEventListener('online', () => {
-    connectionStatus.textContent = 'Connected';
-    connectionStatus.previousElementSibling.classList.add('online');
-});
-
-window.addEventListener('offline', () => {
-    connectionStatus.textContent = 'Offline';
-    connectionStatus.previousElementSibling.classList.remove('online');
-});
+console.log('App initialized successfully!');
