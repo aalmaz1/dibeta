@@ -1,6 +1,3 @@
-// ==========================================
-// Firebase SDK Imports
-// ==========================================
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { 
     getAuth, 
@@ -13,11 +10,12 @@ import {
     getDatabase, 
     ref, 
     onValue, 
+    set,
     off
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 
 // ==========================================
-// Firebase Config - ЗАМЕНИТЕ НА СВОИ ЗНАЧЕНИЯ
+// CONFIG - ЗАМЕНИТЕ НА СВОИ ЗНАЧЕНИЯ
 // ==========================================
 const firebaseConfig = {
   apiKey: "AIzaSyCkjTO4oSRdCyehUsJ1QVj0KqdB_QzigAc",
@@ -30,138 +28,74 @@ const firebaseConfig = {
   measurementId: "G-MM216YNWC3"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const database = getDatabase(app);
 
-console.log('Firebase initialized:', app);
-
 // ==========================================
-// State
+// STATE
 // ==========================================
 let isLoginMode = true;
 let currentUser = null;
-let devicesRef = null;
+let devices = {};
 let map = null;
 let markers = {};
 
 // ==========================================
-// DOM Elements
+// DOM
 // ==========================================
-const els = {
-    authScreen: document.getElementById('auth-screen'),
-    dashboardScreen: document.getElementById('dashboard-screen'),
-    email: document.getElementById('email'),
-    password: document.getElementById('password'),
-    authActionBtn: document.getElementById('auth-action-btn'),
-    btnText: document.getElementById('btn-text'),
-    btnLoader: document.getElementById('btn-loader'),
-    authToggleBtn: document.getElementById('auth-toggle-btn'),
-    authModeText: document.getElementById('auth-mode-text'),
-    logoutBtn: document.getElementById('logout-btn'),
-    deviceList: document.getElementById('device-list'),
-    deviceCount: document.getElementById('device-count'),
-    userEmail: document.getElementById('user-email'),
-    notifications: document.getElementById('notifications')
-};
-
-console.log('DOM elements:', els);
+const authScreen = document.getElementById('auth-screen');
+const dashboardScreen = document.getElementById('dashboard-screen');
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
+const authBtn = document.getElementById('auth-btn');
+const toggleBtn = document.getElementById('toggle-btn');
+const authModeText = document.getElementById('auth-mode');
+const addDeviceBtn = document.getElementById('add-device-btn');
+const logoutBtn = document.getElementById('logout-btn');
+const addModal = document.getElementById('add-modal');
+const deviceIdInput = document.getElementById('device-id-input');
+const qrSection = document.getElementById('qr-section');
+const generatedIdDisplay = document.getElementById('generated-id');
 
 // ==========================================
-// Auth Functions
+// AUTH
 // ==========================================
 
-function toggleAuthMode() {
-    console.log('Toggle clicked, current mode:', isLoginMode);
+toggleBtn.addEventListener('click', () => {
     isLoginMode = !isLoginMode;
-    
-    if (isLoginMode) {
-        els.btnText.textContent = 'Sign In';
-        els.authModeText.textContent = "Don't have an account?";
-        els.authToggleBtn.textContent = 'Sign Up';
-    } else {
-        els.btnText.textContent = 'Create Account';
-        els.authModeText.textContent = "Already have an account?";
-        els.authToggleBtn.textContent = 'Sign In';
-    }
-    
-    console.log('New mode:', isLoginMode ? 'login' : 'signup');
-}
+    authBtn.textContent = isLoginMode ? 'Sign In' : 'Create Account';
+    authModeText.textContent = isLoginMode ? "Don't have an account?" : "Already have an account?";
+    toggleBtn.textContent = isLoginMode ? 'Sign Up' : 'Sign In';
+});
 
-async function handleAuthAction() {
-    const email = els.email.value.trim();
-    const password = els.password.value;
-    
-    console.log('Auth action:', isLoginMode ? 'login' : 'signup', email);
+authBtn.addEventListener('click', async () => {
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
     
     if (!email || !password) {
-        showNotification('Please enter email and password', 'error');
+        alert('Please enter email and password');
         return;
     }
     
-    if (password.length < 6) {
-        showNotification('Password must be at least 6 characters', 'error');
-        return;
-    }
-    
-    setLoading(true);
+    authBtn.disabled = true;
     
     try {
         if (isLoginMode) {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            console.log('Signed in:', userCredential.user.email);
-            showNotification('Signed in successfully!', 'success');
+            await signInWithEmailAndPassword(auth, email, password);
         } else {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            console.log('Account created:', userCredential.user.email);
-            showNotification('Account created successfully!', 'success');
+            await createUserWithEmailAndPassword(auth, email, password);
         }
     } catch (error) {
-        console.error('Auth error:', error);
-        showNotification(getErrorMessage(error.code), 'error');
+        alert('Error: ' + error.message);
     } finally {
-        setLoading(false);
+        authBtn.disabled = false;
     }
-}
-
-function handleLogout() {
-    signOut(auth).then(() => {
-        showNotification('Signed out', 'success');
-    }).catch((error) => {
-        showNotification('Error: ' + error.message, 'error');
-    });
-}
-
-// ==========================================
-// Event Listeners
-// ==========================================
-
-// Кнопка Sign Up / Sign In переключения
-els.authToggleBtn.addEventListener('click', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    console.log('Toggle button clicked!');
-    toggleAuthMode();
 });
 
-// Кнопка основного действия (Sign In / Create Account)
-els.authActionBtn.addEventListener('click', function(e) {
-    e.preventDefault();
-    console.log('Action button clicked!');
-    handleAuthAction();
-});
-
-// Кнопка выхода
-els.logoutBtn.addEventListener('click', handleLogout);
-
-// ==========================================
-// Auth State
-// ==========================================
+logoutBtn.addEventListener('click', () => signOut(auth));
 
 onAuthStateChanged(auth, (user) => {
-    console.log('Auth state changed:', user ? user.email : 'null');
-    
     if (user) {
         currentUser = user;
         showDashboard();
@@ -173,71 +107,19 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// ==========================================
-// UI Functions
-// ==========================================
-
-function setLoading(loading) {
-    els.authActionBtn.disabled = loading;
-    els.btnText.classList.toggle('hidden', loading);
-    els.btnLoader.classList.toggle('hidden', !loading);
-}
-
 function showAuth() {
-    els.authScreen.classList.add('active');
-    els.dashboardScreen.classList.remove('active');
-    els.email.value = '';
-    els.password.value = '';
-    isLoginMode = true;
-    els.btnText.textContent = 'Sign In';
-    els.authModeText.textContent = "Don't have an account?";
-    els.authToggleBtn.textContent = 'Sign Up';
+    authScreen.classList.add('active');
+    dashboardScreen.classList.remove('active');
 }
 
 function showDashboard() {
-    els.authScreen.classList.remove('active');
-    els.dashboardScreen.classList.add('active');
-    els.userEmail.textContent = currentUser.email;
+    authScreen.classList.remove('active');
+    dashboardScreen.classList.add('active');
     initMap();
 }
 
-function showNotification(message, type = 'info') {
-    const notif = document.createElement('div');
-    notif.className = `notification ${type}`;
-    notif.textContent = message;
-    notif.style.cssText = `
-        background: rgba(0,0,0,0.9);
-        color: white;
-        padding: 16px 24px;
-        border-radius: 12px;
-        margin-bottom: 10px;
-        border-left: 4px solid ${type === 'success' ? '#30D158' : type === 'error' ? '#FF3B30' : '#007AFF'};
-        animation: slideIn 0.3s ease;
-    `;
-    els.notifications.appendChild(notif);
-    
-    setTimeout(() => {
-        notif.style.opacity = '0';
-        setTimeout(() => notif.remove(), 300);
-    }, 3000);
-}
-
-function getErrorMessage(code) {
-    const messages = {
-        'auth/invalid-email': 'Invalid email address',
-        'auth/user-disabled': 'Account disabled',
-        'auth/user-not-found': 'Account not found',
-        'auth/wrong-password': 'Wrong password',
-        'auth/email-already-in-use': 'Email already registered',
-        'auth/weak-password': 'Password too weak (min 6 chars)',
-        'auth/invalid-credential': 'Invalid email or password',
-        'auth/network-request-failed': 'Network error'
-    };
-    return messages[code] || code;
-}
-
 // ==========================================
-// Map Functions
+// MAP
 // ==========================================
 
 function initMap() {
@@ -246,93 +128,152 @@ function initMap() {
     map = L.map('map', {
         zoomControl: false,
         attributionControl: false
-    }).setView([37.5665, 126.9780], 12);
+    }).setView([55.7558, 37.6173], 10);
     
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19
-    }).addTo(map);
-    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 }
 
+function updateMarker(deviceId, device) {
+    const { lat, lng } = device || {};
+    if (!lat || !lng) return;
+    
+    const pos = [lat, lng];
+    
+    if (markers[deviceId]) {
+        markers[deviceId].setLatLng(pos);
+    } else {
+        markers[deviceId] = L.marker(pos).addTo(map)
+            .bindPopup(`<b>${deviceId}</b><br>Battery: ${device.battery}%`);
+    }
+}
+
 // ==========================================
-// Tracking Functions
+// DEVICES TRACKING
 // ==========================================
 
 function startTracking() {
     if (!currentUser) return;
     
-    const userId = currentUser.email.replace(/[.#$[\]]/g, '_');
-    devicesRef = ref(database, `users/${userId}/devices`);
+    const devicesRef = ref(database, `users/${currentUser.uid}/devices`);
     
     onValue(devicesRef, (snapshot) => {
-        const data = snapshot.val() || {};
-        renderDevices(data);
+        devices = snapshot.val() || {};
+        renderDevices();
+        
+        Object.entries(devices).forEach(([id, dev]) => updateMarker(id, dev));
+        
+        // Fit bounds
+        const locations = Object.values(devices)
+            .filter(d => d.lat && d.lng)
+            .map(d => [d.lat, d.lng]);
+        
+        if (locations.length > 0 && map) {
+            map.fitBounds(L.latLngBounds(locations), { padding: [50, 50], maxZoom: 15 });
+        }
     });
 }
 
 function stopTracking() {
-    if (devicesRef) {
-        off(devicesRef);
-        devicesRef = null;
-    }
-    
-    Object.values(markers).forEach(m => map?.removeLayer(m));
-    markers = {};
+    // Cleanup
 }
 
-function renderDevices(devices) {
+function renderDevices() {
+    const list = document.getElementById('devices-list');
     const entries = Object.entries(devices);
-    els.deviceCount.textContent = entries.length;
+    document.getElementById('device-count').textContent = entries.length;
     
     if (entries.length === 0) {
-        els.deviceList.innerHTML = '<div class="empty-state">No devices found</div>';
+        list.innerHTML = '<div class="empty-state">No devices yet. Add a phone to start tracking.</div>';
         return;
     }
     
-    els.deviceList.innerHTML = entries.map(([id, dev]) => {
-        const loc = dev.location || {};
-        const online = dev.timestamp && (Date.now() - dev.timestamp < 300000);
+    list.innerHTML = entries.map(([id, dev]) => {
+        const isOnline = dev.timestamp && (Date.now() - dev.timestamp < 300000);
+        const time = dev.timestamp ? new Date(dev.timestamp).toLocaleTimeString() : 'Unknown';
         
         return `
-            <div class="device-card" data-id="${id}">
-                <div class="device-icon">📱</div>
-                <div class="device-info">
-                    <div class="device-name">${dev.name || id}</div>
-                    <div class="device-status ${online ? '' : 'offline'}">
-                        ${online ? 'Online' : 'Offline'}
+            <div class="device-card" onclick="focusDevice('${id}')">
+                <div class="device-header">
+                    <div class="device-id">${id}</div>
+                    <div class="device-status">
+                        <span class="status-dot ${isOnline ? '' : 'offline'}"></span>
+                        ${isOnline ? 'Online' : 'Offline'}
                     </div>
                 </div>
-                <div class="device-meta">
-                    <div class="device-battery">${dev.battery || '?'}%</div>
-                    <div class="device-coords">
-                        ${loc.lat?.toFixed(4) || '?'}, ${loc.lng?.toFixed(4) || '?'}
-                    </div>
+                <div class="device-stats">
+                    <div class="stat">🔋 <span class="stat-value">${dev.battery || '?'}%</span></div>
+                    <div class="stat">📍 <span class="stat-value">${dev.lat ? dev.lat.toFixed(4) : '?'}</span></div>
+                    <div class="stat">🕐 <span class="stat-value">${time}</span></div>
+                    <div class="stat">📡 <span class="stat-value">${dev.accuracy ? Math.round(dev.accuracy) + 'm' : '?'}</span></div>
                 </div>
             </div>
         `;
     }).join('');
+}
+
+window.focusDevice = (id) => {
+    const dev = devices[id];
+    if (dev?.lat && map) {
+        map.flyTo([dev.lat, dev.lng], 16);
+        markers[id]?.openPopup();
+    }
+};
+
+// ==========================================
+// ADD DEVICE MODAL
+// ==========================================
+
+addDeviceBtn.addEventListener('click', () => {
+    addModal.classList.add('active');
+    deviceIdInput.value = '';
+    qrSection.classList.add('hidden');
+});
+
+window.closeModal = () => {
+    addModal.classList.remove('active');
+};
+
+window.generateDevice = () => {
+    const phoneNumber = deviceIdInput.value.trim();
+    if (!phoneNumber) {
+        alert('Please enter phone number');
+        return;
+    }
     
-    // Click handlers
-    els.deviceList.querySelectorAll('.device-card').forEach(card => {
-        card.addEventListener('click', () => {
-            const id = card.dataset.id;
-            const dev = devices[id];
-            if (dev?.location?.lat && map) {
-                map.flyTo([dev.location.lat, dev.location.lng], 16);
-            }
-        });
+    // Sanitize for Firebase path
+    const deviceId = phoneNumber.replace(/[.#$[\]]/g, '_');
+    
+    generatedIdDisplay.textContent = deviceId;
+    qrSection.classList.remove('hidden');
+    
+    // Generate QR
+    document.getElementById('qrcode').innerHTML = '';
+    new QRCode(document.getElementById('qrcode'), {
+        text: deviceId,
+        width: 200,
+        height: 200,
+        colorDark: "#000000",
+        colorLight: "#ffffff"
     });
-}
+    
+    // Save to Firebase
+    if (currentUser) {
+        const deviceRef = ref(database, `users/${currentUser.uid}/devices/${deviceId}`);
+        set(deviceRef, {
+            registeredAt: Date.now(),
+            status: 'pending'
+        });
+    }
+};
 
-// ==========================================
-// Service Worker
-// ==========================================
+window.copyDeviceId = () => {
+    navigator.clipboard.writeText(generatedIdDisplay.textContent)
+        .then(() => alert('Device ID copied!'))
+        .catch(() => alert('Failed to copy'));
+};
 
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js')
-        .then(() => console.log('SW registered'))
-        .catch(err => console.log('SW error:', err));
-}
-
-console.log('App initialized successfully!');
+// Close modal on outside click
+addModal.addEventListener('click', (e) => {
+    if (e.target === addModal) closeModal();
+});
