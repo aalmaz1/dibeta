@@ -46,8 +46,9 @@ const connectionStatus = document.getElementById('connection-status');
 // ==========================================
 
 // Toggle between login and signup
-authToggleBtn.addEventListener('click', () => {
+function toggleAuthMode() {
     state.isLoginMode = !state.isLoginMode;
+    
     if (state.isLoginMode) {
         btnText.textContent = 'Sign In';
         authModeText.textContent = "Don't have an account?";
@@ -57,6 +58,15 @@ authToggleBtn.addEventListener('click', () => {
         authModeText.textContent = "Already have an account?";
         authToggleBtn.textContent = 'Sign In';
     }
+    
+    console.log('Switched to mode:', state.isLoginMode ? 'login' : 'signup');
+}
+
+// Handle toggle button click
+authToggleBtn.addEventListener('click', (e) => {
+    e.preventDefault(); // Prevent form submission
+    e.stopPropagation(); // Stop event bubbling
+    toggleAuthMode();
 });
 
 // Handle form submit
@@ -70,15 +80,22 @@ authForm.addEventListener('submit', async (e) => {
         return;
     }
     
+    if (password.length < 6) {
+        showNotification('Password must be at least 6 characters', 'error');
+        return;
+    }
+    
     setLoading(true);
     
     try {
         if (state.isLoginMode) {
+            // Sign In
             await signInWithEmailAndPassword(auth, email, password);
-            showNotification('Signed in successfully', 'success');
+            showNotification('Signed in successfully!', 'success');
         } else {
+            // Sign Up
             await createUserWithEmailAndPassword(auth, email, password);
-            showNotification('Account created successfully', 'success');
+            showNotification('Account created successfully!', 'success');
         }
     } catch (error) {
         console.error('Auth error:', error);
@@ -127,6 +144,14 @@ function showAuth() {
     dashboardScreen.classList.remove('active');
     emailInput.value = '';
     passwordInput.value = '';
+    state.isLoginMode = true;
+    updateUIForLoginMode();
+}
+
+function updateUIForLoginMode() {
+    btnText.textContent = 'Sign In';
+    authModeText.textContent = "Don't have an account?";
+    authToggleBtn.textContent = 'Sign Up';
 }
 
 function showDashboard() {
@@ -147,7 +172,7 @@ function getAuthErrorMessage(code) {
         'auth/invalid-credential': 'Invalid email or password',
         'auth/network-request-failed': 'Network error. Please check your connection'
     };
-    return messages[code] || 'An error occurred. Please try again';
+    return messages[code] || `Error: ${code}`;
 }
 
 function showNotification(message, type = 'info') {
@@ -174,13 +199,12 @@ function initMap() {
     state.map = L.map('map', {
         zoomControl: false,
         attributionControl: false
-    }).setView([37.5665, 126.9780], 12); // Seoul default
+    }).setView([37.5665, 126.9780], 12);
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19
     }).addTo(state.map);
     
-    // Add zoom control to bottom right
     L.control.zoom({
         position: 'bottomright'
     }).addTo(state.map);
@@ -236,12 +260,10 @@ function startDeviceTracking() {
         state.devices = data;
         renderDevices();
         
-        // Update markers
         Object.entries(data).forEach(([deviceId, device]) => {
             updateDeviceMarker(deviceId, device);
         });
         
-        // Fit bounds if we have devices with locations
         const locations = Object.values(data)
             .filter(d => d.location?.lat && d.location?.lng)
             .map(d => [d.location.lat, d.location.lng]);
@@ -259,13 +281,11 @@ function stopDeviceTracking() {
         devicesRef = null;
     }
     
-    // Clear markers
     Object.values(state.markers).forEach(marker => {
         if (state.map) state.map.removeLayer(marker);
     });
     state.markers = {};
     
-    // Clear device list
     deviceList.innerHTML = '';
     deviceCount.textContent = '0';
 }
@@ -283,7 +303,7 @@ function renderDevices() {
                  data-device-id="${deviceId}">
                 <div class="device-icon">📱</div>
                 <div class="device-info">
-                    <div class="device-name">${device.name || 'Unknown Device'}</div>
+                    <div class="device-name">${device.name || deviceId}</div>
                     <div class="device-status ${isOnline ? '' : 'offline'}">
                         ${isOnline ? 'Online' : 'Offline'}
                     </div>
@@ -299,7 +319,6 @@ function renderDevices() {
         `;
     }).join('');
     
-    // Add click handlers
     deviceList.querySelectorAll('.device-card').forEach(card => {
         card.addEventListener('click', () => {
             const deviceId = card.dataset.deviceId;
@@ -307,13 +326,11 @@ function renderDevices() {
             
             state.activeDeviceId = deviceId;
             
-            // Center map on device
             if (device?.location?.lat && state.map) {
                 state.map.flyTo([device.location.lat, device.location.lng], 16);
                 state.markers[deviceId]?.openPopup();
             }
             
-            // Update active state
             deviceList.querySelectorAll('.device-card').forEach(c => c.classList.remove('active'));
             card.classList.add('active');
         });
@@ -341,7 +358,6 @@ function formatTime(timestamp) {
     return date.toLocaleTimeString();
 }
 
-// Update connection status
 window.addEventListener('online', () => {
     connectionStatus.textContent = 'Connected';
     connectionStatus.previousElementSibling.classList.add('online');
