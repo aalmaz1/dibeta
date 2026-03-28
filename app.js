@@ -20,13 +20,14 @@ import {
 // Firebase Config - ЗАМЕНИТЕ НА СВОИ ЗНАЧЕНИЯ
 // ==========================================
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCkjTO4oSRdCyehUsJ1QVj0KqdB_QzigAc",
+  authDomain: "traaxcker.firebaseapp.com",
+  databaseURL: "https://traaxcker-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "traaxcker",
+  storageBucket: "traaxcker.firebasestorage.app",
+  messagingSenderId: "315863450054",
+  appId: "1:315863450054:web:9accc8bdf57fda00c6f2c7",
+  measurementId: "G-MM216YNWC3"
 };
 
 // Initialize Firebase
