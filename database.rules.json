@@ -1,0 +1,25 @@
+{
+    "rules": {
+        "users": {
+            "$userId": {
+                ".read": "auth != null && auth.uid == $userId",
+                ".write": "auth != null && auth.uid == $userId",
+                
+                "devices": {
+                    "$deviceId": {
+                        ".validate": "newData.hasChildren(['timestamp'])",
+                        
+                        "location": {
+                            "lat": { ".validate": "newData.isNumber()" },
+                            "lng": { ".validate": "newData.isNumber()" },
+                            "accuracy": { ".validate": "newData.isNumber()" }
+                        },
+                        "battery": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+                        "timestamp": { ".validate": "newData.isNumber()" },
+                        "status": { ".validate": "newData.isString()" }
+                    }
+                }
+            }
+        }
+    }
+}
