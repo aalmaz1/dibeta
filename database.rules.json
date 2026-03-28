@@ -1,25 +1,20 @@
 {
-    "rules": {
-        "users": {
-            "$userId": {
-                ".read": "auth != null && auth.uid == $userId",
-                ".write": "auth != null && auth.uid == $userId",
-                
-                "devices": {
-                    "$deviceId": {
-                        ".validate": "newData.hasChildren(['timestamp'])",
-                        
-                        "location": {
-                            "lat": { ".validate": "newData.isNumber()" },
-                            "lng": { ".validate": "newData.isNumber()" },
-                            "accuracy": { ".validate": "newData.isNumber()" }
-                        },
-                        "battery": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
-                        "timestamp": { ".validate": "newData.isNumber()" },
-                        "status": { ".validate": "newData.isString()" }
-                    }
-                }
-            }
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid",
+        "devices": {
+          "$deviceId": {
+            ".validate": "newData.hasChildren(['timestamp']) || newData.hasChildren(['registeredAt'])",
+            "lat": { ".validate": "newData.isNumber()" },
+            "lng": { ".validate": "newData.isNumber()" },
+            "battery": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+            "timestamp": { ".validate": "newData.isNumber()" },
+            "accuracy": { ".validate": "newData.isNumber()" }
+          }
         }
+      }
     }
+  }
 }
