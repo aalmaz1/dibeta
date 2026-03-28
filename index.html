@@ -1,301 +1,108 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>HyprTrack V2 • Precision Tracker</title>
+    <title>Phone Tracker • GPS Dashboard</title>
+    <meta name="description" content="Real-time phone tracking dashboard">
+    <meta name="theme-color" content="#000000">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23007AFF'/%3E%3Ccircle cx='50' cy='50' r='25' fill='none' stroke='white' stroke-width='8'/%3E%3Ccircle cx='50' cy='50' r='8' fill='white'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        :root {
-            --bg: #000000;
-            --glass: rgba(255, 255, 255, 0.08);
-            --glass-border: rgba(255, 255, 255, 0.2);
-            --accent-blue: #007AFF;
-            --success-green: #30D158;
-            --alert-red: #FF3B30;
-            --text: #FFFFFF;
-            --text-secondary: rgba(255, 255, 255, 0.6);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
-        }
-
-        body {
-            background: var(--bg);
-            color: var(--text);
-            overflow: hidden;
-            height: 100vh;
-            width: 100vw;
-        }
-
-        #map {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-            filter: brightness(0.6) contrast(1.2);
-        }
-
-        .overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 10;
-            pointer-events: none;
-            display: flex;
-            flex-direction: column;
-            padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom) 20px;
-        }
-
-        header {
-            padding: 20px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            pointer-events: auto;
-        }
-
-        .status-badge {
-            background: var(--glass);
-            backdrop-filter: blur(20px) saturate(180%);
-            -webkit-backdrop-filter: blur(20px) saturate(180%);
-            border: 1px solid var(--glass-border);
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--success-green);
-            box-shadow: 0 0 10px var(--success-green);
-        }
-
-        .device-stack {
-            margin-top: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            padding-bottom: 20px;
-            pointer-events: auto;
-        }
-
-        .device-card {
-            background: rgba(255, 255, 255, 0.12);
-            backdrop-filter: blur(40px) saturate(180%);
-            -webkit-backdrop-filter: blur(40px) saturate(180%);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            padding: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .device-card:active {
-            transform: scale(0.98);
-        }
-
-        .device-info h2 {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-
-        .device-info p {
-            font-size: 13px;
-            color: var(--text-secondary);
-        }
-
-        .device-stats {
-            text-align: right;
-        }
-
-        .battery {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--success-green);
-            margin-bottom: 4px;
-        }
-
-        .coords {
-            font-family: "SF Mono", monospace;
-            font-size: 11px;
-            opacity: 0.5;
-        }
-
-        .controls {
-            position: absolute;
-            right: 20px;
-            top: 50%;
-            transform: translateY(-50%);
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            z-index: 20;
-            pointer-events: auto;
-        }
-
-        .btn-round {
-            width: 50px;
-            height: 50px;
-            border-radius: 25px;
-            background: var(--glass);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            cursor: pointer;
-            color: white;
-            font-size: 20px;
-        }
-
-        /* Leaflet custom dark theme */
-        .leaflet-container {
-            background: #000 !important;
-        }
-        .leaflet-tile-pane {
-            filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="map"></div>
-
-    <div class="overlay">
-        <header>
-            <div class="status-badge">
-                <div class="dot"></div>
-                HyprTrack Live
+    <!-- Auth Screen -->
+    <div id="auth-screen" class="screen active">
+        <div class="auth-container">
+            <div class="logo">
+                <div class="logo-icon">📍</div>
+                <h1>Phone Tracker</h1>
+                <p>Real-time GPS Tracking</p>
             </div>
-            <div class="status-badge" style="color: var(--accent-blue)">
-                KOREA / HWASEONG
-            </div>
-        </header>
-
-        <div class="controls">
-            <div class="btn-round" onclick="updateLocation()">🛰️</div>
-            <div class="btn-round" onclick="toggleLock()">🔒</div>
-            <div class="btn-round" onclick="takeScreenshot()">📸</div>
-        </div>
-
-        <div class="device-stack" id="deviceStack">
-            <!-- Devices will be injected here -->
+            
+            <form id="auth-form" class="auth-form">
+                <div class="input-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" placeholder="your@email.com" required autocomplete="email">
+                </div>
+                
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
+                </div>
+                
+                <button type="submit" class="btn-primary" id="login-btn">
+                    <span class="btn-text">Sign In</span>
+                    <span class="btn-loader hidden">⟳</span>
+                </button>
+                
+                <div class="auth-toggle">
+                    <span id="auth-mode-text">Don't have an account?</span>
+                    <button type="button" id="auth-toggle-btn" class="link-btn">Sign Up</button>
+                </div>
+            </form>
+            
+            <p class="auth-hint">Use the same email on your Android device</p>
         </div>
     </div>
 
+    <!-- Dashboard Screen -->
+    <div id="dashboard-screen" class="screen">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="status-badge">
+                    <div class="status-dot online"></div>
+                    <span id="connection-status">Connected</span>
+                </div>
+            </div>
+            <div class="header-center">
+                <h2>My Devices</h2>
+            </div>
+            <div class="header-right">
+                <button id="logout-btn" class="icon-btn" title="Logout">🚪</button>
+            </div>
+        </header>
+
+        <!-- Map Container -->
+        <div id="map"></div>
+
+        <!-- Device List Panel -->
+        <div class="device-panel">
+            <div class="panel-header">
+                <h3>Devices</h3>
+                <span id="device-count" class="badge">0</span>
+            </div>
+            <div id="device-list" class="device-list">
+                <!-- Devices will be rendered here -->
+            </div>
+        </div>
+
+        <!-- User Info -->
+        <div class="user-bar">
+            <span id="user-email">user@email.com</span>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notifications"></div>
+
+    <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="app.js"></script>
+    
+    <!-- Register Service Worker -->
     <script>
-        const devices = [
-            {
-                id: 'asus-lpt',
-                name: 'Asus Laptop',
-                type: 'KUbuntu Client',
-                lat: 37.2034,
-                lng: 127.0456,
-                battery: 78,
-                status: 'online',
-                icon: '💻'
-            },
-            {
-                id: 'and-phone',
-                name: 'Android Phone',
-                type: 'Mobile GPS',
-                lat: 37.2051,
-                lng: 127.0472,
-                battery: 92,
-                status: 'online',
-                icon: '📱'
-            }
-        ];
-
-        // Init Map (Apple Maps style dark)
-        const map = L.map('map', {
-            zoomControl: false,
-            attributionControl: false
-        }).setView([37.2040, 127.0465], 16);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-        const markers = {};
-
-        function renderDevices() {
-            const stack = document.getElementById('deviceStack');
-            stack.innerHTML = '';
-
-            devices.forEach(device => {
-                // Render Card
-                const card = document.createElement('div');
-                card.className = 'device-card';
-                card.innerHTML = `
-                    <div class="device-info">
-                        <h2>${device.icon} ${device.name}</h2>
-                        <p>${device.type} • Just now</p>
-                    </div>
-                    <div class="device-stats">
-                        <div class="battery">${device.battery}%</div>
-                        <div class="coords">${device.lat.toFixed(4)}, ${device.lng.toFixed(4)}</div>
-                    </div>
-                `;
-                card.onclick = () => map.flyTo([device.lat, device.lng], 18);
-                stack.appendChild(card);
-
-                // Render Marker
-                if (markers[device.id]) {
-                    markers[device.id].setLatLng([device.lat, device.lng]);
-                } else {
-                    markers[device.id] = L.marker([device.lat, device.lng]).addTo(map);
-                }
-            });
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('SW registered'))
+                .catch(err => console.log('SW error:', err));
         }
-
-        function updateLocation() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(pos => {
-                    const { latitude, longitude } = pos.coords;
-                    devices[1].lat = latitude;
-                    devices[1].lng = longitude;
-                    renderDevices();
-                    map.panTo([latitude, longitude]);
-                    localStorage.setItem('last_loc', JSON.stringify({latitude, longitude}));
-                });
-            }
-        }
-
-        function toggleLock() { alert("Command Sent: LOCK DEVICE"); }
-        function takeScreenshot() { alert("Command Sent: SCREENSHOT REQUESTED"); }
-
-        // Initial Render
-        renderDevices();
-
-        // Background sync simulation
-        setInterval(() => {
-            devices.forEach(d => {
-                d.lat += (Math.random() - 0.5) * 0.0001;
-                d.lng += (Math.random() - 0.5) * 0.0001;
-            });
-            renderDevices();
-        }, 5000);
     </script>
 </body>
 </html>
