@@ -3,510 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Phone Tracker • GPS Dashboard</title>
+    <title>PhoneTracker • GPS Dashboard</title>
     <meta name="theme-color" content="#000000">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        :root {
-            --bg: #000000;
-            --glass: rgba(255, 255, 255, 0.08);
-            --glass-border: rgba(255, 255, 255, 0.2);
-            --accent: #007AFF;
-            --success: #30D158;
-            --error: #FF3B30;
-            --text: #FFFFFF;
-            --text-secondary: rgba(255, 255, 255, 0.6);
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-        }
-        
-        html, body {
-            height: 100%;
-            background: var(--bg);
-            color: var(--text);
-            overflow: hidden;
-        }
-        
-        .screen {
-            position: fixed;
-            inset: 0;
-            display: none;
-        }
-        
-        .screen.active {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        /* Auth Screen */
-        #auth-screen {
-            background: radial-gradient(ellipse at center, rgba(0, 122, 255, 0.1) 0%, transparent 70%);
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        
-        .auth-container {
-            width: 100%;
-            max-width: 400px;
-        }
-        
-        .logo {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-        
-        .logo-icon {
-            font-size: 64px;
-            margin-bottom: 16px;
-        }
-        
-        .auth-card {
-            background: var(--glass);
-            backdrop-filter: blur(80px) saturate(180%);
-            -webkit-backdrop-filter: blur(80px) saturate(180%);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            padding: 32px;
-            box-shadow: 
-                0 8px 32px rgba(0, 0, 0, 0.37),
-                inset 0 1px 0 rgba(255, 255, 255, 0.1);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .auth-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-        }
-        
-        .input-group {
-            margin-bottom: 20px;
-        }
-        
-        .input-group label {
-            display: block;
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 8px;
-        }
-        
-        .input-group input {
-            width: 100%;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            padding: 14px 16px;
-            color: var(--text);
-            font-size: 16px;
-            outline: none;
-            transition: all 0.2s;
-        }
-        
-        .input-group input:focus {
-            border-color: var(--accent);
-            background: rgba(255, 255, 255, 0.08);
-        }
-        
-        .btn-primary {
-            width: 100%;
-            background: var(--accent);
-            border: none;
-            border-radius: 12px;
-            padding: 16px;
-            color: white;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin-top: 10px;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 20px rgba(0, 122, 255, 0.4);
-        }
-        
-        .btn-primary:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        
-        .auth-toggle {
-            text-align: center;
-            margin-top: 20px;
-            color: var(--text-secondary);
-            font-size: 14px;
-        }
-        
-        .link-btn {
-            background: none;
-            border: none;
-            color: var(--accent);
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-        }
-        
-        /* Dashboard */
-        #dashboard-screen {
-            padding: 20px;
-            padding-top: env(safe-area-inset-top);
-        }
-        
-        .dashboard-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        
-        .dashboard-header h1 {
-            font-size: 28px;
-            font-weight: 700;
-        }
-        
-        .header-actions {
-            display: flex;
-            gap: 12px;
-        }
-        
-        .btn-add {
-            background: var(--accent);
-            border: none;
-            border-radius: 12px;
-            padding: 12px 20px;
-            color: white;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .btn-logout {
-            background: var(--glass);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            padding: 12px 16px;
-            color: var(--text);
-            cursor: pointer;
-        }
-        
-        .dashboard-content {
-            display: grid;
-            grid-template-columns: 1fr 380px;
-            gap: 20px;
-            flex: 1;
-            min-height: 0;
-        }
-        
-        .map-container {
-            background: var(--glass);
-            backdrop-filter: blur(80px);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            overflow: hidden;
-            position: relative;
-        }
-        
-        #map {
-            width: 100%;
-            height: 100%;
-            filter: brightness(0.7) contrast(1.1);
-        }
-        
-        .devices-panel {
-            background: var(--glass);
-            backdrop-filter: blur(80px);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            padding: 24px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .devices-panel h2 {
-            font-size: 20px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .device-count {
-            background: var(--accent);
-            color: white;
-            font-size: 14px;
-            padding: 4px 10px;
-            border-radius: 12px;
-        }
-        
-        .device-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .device-card:hover {
-            background: rgba(255, 255, 255, 0.1);
-            transform: translateY(-2px);
-        }
-        
-        .device-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-        
-        .device-id {
-            font-weight: 600;
-            font-size: 16px;
-        }
-        
-        .device-status {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 13px;
-            color: var(--text-secondary);
-        }
-        
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--success);
-            box-shadow: 0 0 8px var(--success);
-        }
-        
-        .status-dot.offline {
-            background: var(--error);
-            box-shadow: 0 0 8px var(--error);
-        }
-        
-        .device-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            font-size: 14px;
-        }
-        
-        .stat {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--text-secondary);
-        }
-        
-        .stat-value {
-            color: var(--text);
-            font-weight: 600;
-        }
-        
-        /* Modal */
-        .modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(10px);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-            padding: 20px;
-        }
-        
-        .modal.active {
-            display: flex;
-        }
-        
-        .modal-content {
-            background: var(--glass);
-            backdrop-filter: blur(80px);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            padding: 32px;
-            width: 100%;
-            max-width: 420px;
-            position: relative;
-        }
-        
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
-        }
-        
-        .modal-header h3 {
-            font-size: 20px;
-        }
-        
-        .btn-close {
-            background: none;
-            border: none;
-            color: var(--text-secondary);
-            font-size: 24px;
-            cursor: pointer;
-        }
-        
-        #qrcode {
-            display: flex;
-            justify-content: center;
-            margin: 24px 0;
-            padding: 20px;
-            background: white;
-            border-radius: 16px;
-        }
-        
-        .device-id-display {
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            padding: 16px;
-            font-family: monospace;
-            font-size: 18px;
-            text-align: center;
-            margin: 16px 0;
-            word-break: break-all;
-        }
-        
-        .btn-copy {
-            width: 100%;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            padding: 14px;
-            color: var(--text);
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .btn-copy:hover {
-            background: rgba(255, 255, 255, 0.15);
-        }
-        
-        .hidden {
-            display: none !important;
-        }
-        
-        .empty-state {
-            text-align: center;
-            color: var(--text-secondary);
-            padding: 40px;
-        }
-        
-        @media (max-width: 900px) {
-            .dashboard-content {
-                grid-template-columns: 1fr;
-                grid-template-rows: 50% 1fr;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Auth Screen -->
-    <div id="auth-screen" class="screen active">
-        <div class="auth-container">
-            <div class="logo">
-                <div class="logo-icon">📍</div>
-                <h1>Phone Tracker</h1>
-            </div>
-            
-            <div class="auth-card">
-                <div class="input-group">
-                    <label>Email</label>
-                    <input type="email" id="email" placeholder="your@email.com">
-                </div>
-                
-                <div class="input-group">
-                    <label>Password</label>
-                    <input type="password" id="password" placeholder="••••••••">
-                </div>
-                
-                <button id="auth-btn" class="btn-primary">Sign In</button>
-                
-                <div class="auth-toggle">
-                    <span id="auth-mode">Don't have an account?</span>
-                    <button id="toggle-btn" class="link-btn">Sign Up</button>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Dashboard Screen -->
-    <div id="dashboard-screen" class="screen">
-        <div class="dashboard-header">
-            <h1>My Devices</h1>
-            <div class="header-actions">
-                <button id="add-device-btn" class="btn-add">➕ Add Phone</button>
-                <button id="logout-btn" class="btn-logout">Logout</button>
-            </div>
+<!-- ─── AUTH SCREEN ─────────────────────────── -->
+<div id="auth-screen" class="screen active">
+    <div class="auth-container">
+        <div class="logo">
+            <div class="logo-icon">📍</div>
+            <h1>PhoneTracker</h1>
+            <p>Real-time GPS dashboard</p>
         </div>
-        
-        <div class="dashboard-content">
-            <div class="map-container">
-                <div id="map"></div>
-            </div>
-            
-            <div class="devices-panel">
-                <h2>Tracked Devices <span class="device-count" id="device-count">0</span></h2>
-                <div id="devices-list">
-                    <div class="empty-state">No devices yet. Add a phone to start tracking.</div>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Add Device Modal -->
-    <div id="add-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>➕ Add New Phone</h3>
-                <button class="btn-close" onclick="closeModal()">×</button>
-            </div>
-            
+        <div class="auth-form">
             <div class="input-group">
-                <label>Phone Number (Device ID)</label>
-                <input type="text" id="device-id-input" placeholder="+79001234567">
+                <label>Email</label>
+                <input type="email" id="email" placeholder="your@email.com" autocomplete="email">
             </div>
-            
-            <button onclick="generateDevice()" class="btn-primary">Generate QR Code</button>
-            
-            <div id="qr-section" class="hidden">
-                <div id="qrcode"></div>
-                <div class="device-id-display" id="generated-id"></div>
-                <button onclick="copyDeviceId()" class="btn-copy">📋 Copy Device ID</button>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+            </div>
+            <button id="auth-btn" class="btn-primary">Sign In</button>
+            <div class="auth-toggle">
+                <span id="auth-mode">Don't have an account?</span>
+                <button id="toggle-btn" class="link-btn">Sign Up</button>
+            </div>
+        </div>
+
+        <p class="auth-hint">Use the same email you entered in the PhoneTracker app</p>
+    </div>
+</div>
+
+<!-- ─── DASHBOARD SCREEN ─────────────────────── -->
+<div id="dashboard-screen" class="screen">
+
+    <!-- Header -->
+    <div class="app-header">
+        <div class="header-left">
+            <button class="icon-btn" onclick="window.fitAllDevices()" title="Fit all devices">⊕</button>
+        </div>
+        <div class="header-center">
+            <div class="status-badge">
+                <span class="status-dot offline"></span>
+                <span id="header-status">Connecting…</span>
+            </div>
+        </div>
+        <div class="header-right" style="display:flex;justify-content:flex-end">
+            <button id="logout-btn" class="icon-btn" title="Logout">⏏</button>
+        </div>
+    </div>
+
+    <!-- Map -->
+    <div id="map"></div>
+
+    <!-- Device panel -->
+    <div class="device-panel">
+        <div class="panel-header">
+            <h3>Devices</h3>
+            <span class="badge" id="device-count">0</span>
+        </div>
+        <div class="device-list" id="devices-list">
+            <div class="empty-state">
+                <div style="font-size:36px;margin-bottom:12px">📡</div>
+                <div>Waiting for devices…</div>
             </div>
         </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script type="module" src="app.js"></script>
+    <!-- User bar -->
+    <div class="user-bar">
+        Logged in as <b id="user-email"></b>
+    </div>
+</div>
+
+<!-- ─── NOTIFICATIONS ────────────────────────── -->
+<div id="notifications"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
