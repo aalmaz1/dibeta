@@ -15,7 +15,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
 
 // ==========================================
-// CONFIG - ЗАМЕНИТЕ НА СВОИ ЗНАЧЕНИЯ
+// CONFIG - ВАШИ ЗНАЧЕНИЯ
 // ==========================================
 const firebaseConfig = {
   apiKey: "AIzaSyCkjTO4oSRdCyehUsJ1QVj0KqdB_QzigAc",
@@ -40,9 +40,10 @@ let currentUser = null;
 let devices = {};
 let map = null;
 let markers = {};
+let deviceListeners = {}; // Слушатели для каждого устройства
 
 // ==========================================
-// DOM
+// DOM ELEMENTS
 // ==========================================
 const authScreen = document.getElementById('auth-screen');
 const dashboardScreen = document.getElementById('dashboard-screen');
@@ -59,7 +60,7 @@ const qrSection = document.getElementById('qr-section');
 const generatedIdDisplay = document.getElementById('generated-id');
 
 // ==========================================
-// AUTH
+// AUTH LOGIC
 // ==========================================
 
 toggleBtn.addEventListener('click', () => {
@@ -79,7 +80,6 @@ authBtn.addEventListener('click', async () => {
     }
     
     authBtn.disabled = true;
-    
     try {
         if (isLoginMode) {
             await signInWithEmailAndPassword(auth, email, password);
@@ -119,12 +119,11 @@ function showDashboard() {
 }
 
 // ==========================================
-// MAP
+// MAP LOGIC
 // ==========================================
 
 function initMap() {
     if (map) return;
-    
     map = L.map('map', {
         zoomControl: false,
         attributionControl: false
@@ -135,47 +134,67 @@ function initMap() {
 }
 
 function updateMarker(deviceId, device) {
-    const { lat, lng } = device || {};
+    const { lat, lng, battery, status } = device || {};
     if (!lat || !lng) return;
     
     const pos = [lat, lng];
+    const iconColor = status === 'online' ? 'green' : 'gray';
     
     if (markers[deviceId]) {
         markers[deviceId].setLatLng(pos);
+        markers[deviceId].getPopup().setContent(`<b>${deviceId}</b><br>Battery: ${battery}%<br>Status: ${status}`);
     } else {
         markers[deviceId] = L.marker(pos).addTo(map)
-            .bindPopup(`<b>${deviceId}</b><br>Battery: ${device.battery}%`);
+            .bindPopup(`<b>${deviceId}</b><br>Battery: ${battery}%<br>Status: ${status}`);
     }
 }
 
 // ==========================================
-// DEVICES TRACKING
+// DEVICES TRACKING (СВЯЗКА С ТЕЛЕФОНОМ)
 // ==========================================
 
 function startTracking() {
     if (!currentUser) return;
     
-    const devicesRef = ref(database, `users/${currentUser.uid}/devices`);
+    // 1. Получаем список ID из профиля пользователя
+    const userDevicesRef = ref(database, `users/${currentUser.uid}/devices`);
     
-    onValue(devicesRef, (snapshot) => {
-        devices = snapshot.val() || {};
-        renderDevices();
+    onValue(userDevicesRef, (snapshot) => {
+        const userDeviceList = snapshot.val() || {};
         
-        Object.entries(devices).forEach(([id, dev]) => updateMarker(id, dev));
-        
-        // Fit bounds
-        const locations = Object.values(devices)
-            .filter(d => d.lat && d.lng)
-            .map(d => [d.lat, d.lng]);
-        
-        if (locations.length > 0 && map) {
-            map.fitBounds(L.latLngBounds(locations), { padding: [50, 50], maxZoom: 15 });
-        }
+        // Для каждого ID запускаем отдельное «живое» отслеживание
+        Object.keys(userDeviceList).forEach(deviceId => {
+            if (!deviceListeners[deviceId]) {
+                
+                // Слушаем ветку, куда пишет APK на телефоне
+                const liveRef = ref(database, `devices/${deviceId}`);
+                
+                deviceListeners[deviceId] = onValue(liveRef, (liveSnapshot) => {
+                    const liveData = liveSnapshot.val();
+                    if (liveData) {
+                        // Объединяем данные регистрации и живые координаты
+                        devices[deviceId] = {
+                            ...userDeviceList[deviceId],
+                            ...liveData
+                        };
+                        renderDevices();
+                        updateMarker(deviceId, devices[deviceId]);
+                    }
+                });
+            }
+        });
     });
 }
 
 function stopTracking() {
-    // Cleanup
+    // Отписываемся от всех обновлений
+    Object.values(deviceListeners).forEach(unsubscribe => unsubscribe());
+    deviceListeners = {};
+    devices = {};
+    if (map) {
+        Object.values(markers).forEach(m => m.remove());
+        markers = {};
+    }
 }
 
 function renderDevices() {
@@ -189,8 +208,9 @@ function renderDevices() {
     }
     
     list.innerHTML = entries.map(([id, dev]) => {
-        const isOnline = dev.timestamp && (Date.now() - dev.timestamp < 300000);
-        const time = dev.timestamp ? new Date(dev.timestamp).toLocaleTimeString() : 'Unknown';
+        // Логика онлайна: статус 'online' + обновление не позднее 1 минуты назад
+        const isOnline = dev.status === 'online' && (Date.now() - (dev.lastSeen || 0) < 60000);
+        const time = dev.lastSeen ? new Date(dev.lastSeen).toLocaleTimeString() : 'Never';
         
         return `
             <div class="device-card" onclick="focusDevice('${id}')">
@@ -221,7 +241,7 @@ window.focusDevice = (id) => {
 };
 
 // ==========================================
-// ADD DEVICE MODAL
+// MODAL & DEVICE GENERATION
 // ==========================================
 
 addDeviceBtn.addEventListener('click', () => {
@@ -235,34 +255,33 @@ window.closeModal = () => {
 };
 
 window.generateDevice = () => {
-    const phoneNumber = deviceIdInput.value.trim();
-    if (!phoneNumber) {
-        alert('Please enter phone number');
+    const inputVal = deviceIdInput.value.trim();
+    if (!inputVal) {
+        alert('Please enter a name or number');
         return;
     }
     
-    // Sanitize for Firebase path
-    const deviceId = phoneNumber.replace(/[.#$[\]]/g, '_');
+    // Чистим ID от запрещенных символов Firebase
+    const deviceId = inputVal.replace(/[.#$[\]]/g, '_');
     
     generatedIdDisplay.textContent = deviceId;
     qrSection.classList.remove('hidden');
     
-    // Generate QR
-    document.getElementById('qrcode').innerHTML = '';
-    new QRCode(document.getElementById('qrcode'), {
+    // Генерируем QR
+    const qrContainer = document.getElementById('qrcode');
+    qrContainer.innerHTML = '';
+    new QRCode(qrContainer, {
         text: deviceId,
         width: 200,
-        height: 200,
-        colorDark: "#000000",
-        colorLight: "#ffffff"
+        height: 200
     });
     
-    // Save to Firebase
+    // Привязываем ID к текущему пользователю
     if (currentUser) {
-        const deviceRef = ref(database, `users/${currentUser.uid}/devices/${deviceId}`);
-        set(deviceRef, {
-            registeredAt: Date.now(),
-            status: 'pending'
+        const userDeviceRef = ref(database, `users/${currentUser.uid}/devices/${deviceId}`);
+        set(userDeviceRef, {
+            addedAt: Date.now(),
+            label: inputVal
         });
     }
 };
@@ -273,7 +292,6 @@ window.copyDeviceId = () => {
         .catch(() => alert('Failed to copy'));
 };
 
-// Close modal on outside click
 addModal.addEventListener('click', (e) => {
     if (e.target === addModal) closeModal();
 });
